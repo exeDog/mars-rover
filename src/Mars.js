@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { Rover } from './Rover'
+import React from "react";
+import { Rover } from "./Rover";
 
 const MOVE_VECTOR = {
     S: [0, -1],
@@ -22,159 +22,173 @@ const RIGHT_TURNS_MAP = {
     W: "N"
 };
 
-export const Mars = props => {
+class Mars extends React.Component {
 
-    const { size,positionProp,commands,executeProp,onDone } = props;
-
-
-    const [start, setStart] = useState(null);
-    const [end, setEnd] = useState(null);
-    const [ops, setOps] = useState([]);
-    const [position, setPosition] = useState("0-0");
-    const [facing, setFacing] = useState("N");
-    const [path, setPath] = useState(null);
-    const [error, setError] = useState(null);
-
-
-    useEffect(()=>{
-        reset(()=>{
-            process(commands,positionProp);
-        });
-    }, [props.commands, props.positionProp, props.executeProp]);
-
-    const reset = cb => {
-       setStart(null);
-       setEnd(null);
-       setOps([]);
-       setPosition("0-0");
-       setFacing("N");
-       setPath(null);
-       setError(null);
-       if(cb) cb();
+    initialState = {
+        start: null,
+        end: null,
+        ops: [],
+        position: "0-0",
+        facing: "N",
+        path: null,
+        error: null,
     };
 
-    const process = (commands, positionProp) => {
-        if (commands === '') {
-            reset();
-        } else {
-           if(typeof positionProp === 'string'){
-               const parts = positionProp.split(" ");
-               setStart(`${parts[0]}-${parts[1]}`);
-               setPosition(`${parts[0]}-${parts[1]}`);
-               setFacing(parts[2]);
-           }
+    state = Object.assign({}, this.initialState);
 
-            if (executeProp) {
-                execute(commands);
-            }
+    componentDidMount() {
+        this.reset(() => {
+            this.process(this.props);
+        });
+    }
+
+    componentWillReceiveProps(nextProps) {
+        this.reset(() => {
+            this.process(nextProps);
+        });
+    }
+
+    reset = (cb) => {
+        this.setState(this.initialState, cb);
+    };
+
+    process = (props) => {
+        const {commands, position} = props;
+        if (commands === '') {
+            this.setState(this.initialState);
+        } else {
+            const parts = position.split(" ");
+            this.setState(
+                {
+                    start: parts[0] + "-" + parts[1],
+                    position: parts[0] + "-" + parts[1],
+                    facing: parts[2]
+                },
+                () => {
+                    if (props.execute) {
+                        this.execute(commands);
+                    }
+                }
+            );
         }
     };
 
-    const execute = commands => {
-        let ops = commands || "";
-        ops =  ops.split("");
-        setOps(ops);
-        setTimeout(run,500);
+    execute = (commands) => {
+        let ops = (commands || "").split("");
+        this.setState({ops}, () => {
+            setTimeout(this.run.bind(this), 500);
+        });
     };
 
-    const run = () => {
-        console.log(ops);
-        let opsTemp = ops.slice();
-        let pathTemp = path || {};
-        pathTemp[position] = facing;
-        let op = opsTemp.shift();
+    run = () => {
+        let ops = this.state.ops.slice();
+        let {position, path, facing} = this.state;
+        path = path || {};
+        path[position] = facing;
+        let op = ops.shift();
         let newPosition = {};
-        console.log(op,opsTemp);
-        if (op === 'L') {
-            newPosition = turnRoverLeft();
+        if (op === "L") {
+            newPosition = this.turnRoverLeft();
         } else if (op === "R") {
-            newPosition = turnRoverRight();
+            newPosition = this.turnRoverRight();
         } else if (op === "M") {
-            newPosition = moveRoverForward();
+            newPosition = this.moveRoverForward();
         } else {
             console.log("Invalid command");
         }
-
-        if(newPosition.error) {
+        if (newPosition.error) {
             alert('Can not move beyond the boundaries of Mars');
         }
+        this.setState(Object.assign(this.state, {
+            ops,
+            path,
+            ...newPosition
+        }), () => {
+            if (this.state.ops.length > 0 && !this.state.error) {
+                setTimeout(this.run.bind(this), 300);
+            } else {
+                this.setState({
+                    end: this.state.position
+                })
+            }
+        })
 
-        setOps(opsTemp);
-        setPath(pathTemp);
-        setPosition(newPosition);
-
-        if (ops.length > 0 && !error) {
-            setTimeout(run,300);
-        } else {
-            setEnd(position);
-        }
     };
 
-    const turnRoverLeft = () => {
-      return setFacing(LEFT_TURNS_MAP[facing]);
-    };
-
-    const turnRoverRight = () => {
-        return setFacing(RIGHT_TURNS_MAP[facing]);
-    };
-
-    const moveRoverForward = (size) => {
+    moveRoverForward = () => {
+        const {size} = this.props;
+        const {position, facing} = this.state;
         const moveVector = MOVE_VECTOR[facing];
         const pos = position.split('-').map(Number);
         const x = pos[0] + moveVector[0];
         const y = pos[1] + moveVector[1];
         if (x < 0 || x >= size || y < 0 || y >= size) {
-            return setError(true);
+            return {error: true};
         }
-        return setPosition(x + '-' + y);
+        return {
+            position: x + '-' + y
+        };
     };
 
-    let cells = [];
+    turnRoverLeft = () => {
+        const {facing} = this.state;
+        return ({
+            facing: LEFT_TURNS_MAP[facing]
+        });
+    };
 
-    useEffect(() => {
+    turnRoverRight = () => {
+        const {facing} = this.state;
+        return ({
+            facing: RIGHT_TURNS_MAP[facing]
+        });
+    };
 
-        let tempPath = path === null ? {} : path;
+    render() {
 
-        setPath(tempPath);
-
+        const {size} = this.props;
+        let {position, facing, path} = this.state;
+        path = path || {};
+        let cells = [];
         for (let i = size - 1; i >= 0; i--) {
             for (let j = 0; j < size; j++) {
                 cells.push(j + "-" + i);
             }
         }
-    },[cells, path, size]);
+        return (
+            <ul className="mars">
+                {cells.map(cell => {
 
-    return(
-        <ul className="mars">
-            {cells.map(cell => {
+                    let roverElm = null;
+                    let roverPath = null;
+                    let cellStatus = '';
 
-                let roverElm = null;
-                let roverPath = null;
-                let cellStatus = '';
+                    if (this.state.error && this.state.end === cell) {
+                        cellStatus = 'error';
+                    }
+                    if (this.state.start === cell) {
+                        cellStatus += ' start';
+                    }
+                    if (this.state.end === cell) {
+                        cellStatus += ' end';
+                    }
 
-                if (error && end === cell) {
-                    cellStatus = 'error';
-                }
-                if (start === cell) {
-                    cellStatus += ' start';
-                }
-                if (end === cell) {
-                    cellStatus += ' end';
-                }
+                    if (position === cell) {
+                        roverElm = <Rover facing={facing}/>;
+                    } else {
+                        roverPath = (path[cell] ? <Rover facing={path[cell]} ghost={true}/> : null);
+                    }
 
-                if (position === cell) {
-                    roverElm = <Rover facing={facing}/>;
-                } else {
-                    roverPath = (path[cell] ? <Rover facing={path[cell]} ghost={true}/> : null);
-                }
+                    return (
+                        <li className={`cell ${!!path[cell] ? 'path' : ''} ${cellStatus}`} key={cell}>
+                            <label>{cell}</label>
+                            {roverElm || roverPath}
+                        </li>
+                    );
+                })}
+            </ul>
+        );
+    }
+}
 
-                return (
-                    <li className={`cell ${!!path[cell] ? 'path' : ''} ${cellStatus}`} key={cell}>
-                        <label>{cell}</label>
-                        {roverElm || roverPath}
-                    </li>
-                );
-            })}
-        </ul>
-    )
-};
+export default Mars;
