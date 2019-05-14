@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import Rover from './Rover'
+import { Rover } from './Rover'
 
 const MOVE_VECTOR = {
     S: [0, -1],
@@ -24,6 +24,9 @@ const RIGHT_TURNS_MAP = {
 
 export const Mars = props => {
 
+    const { size,positionProp,commands,executeProp,onDone } = props;
+
+
     const [start, setStart] = useState(null);
     const [end, setEnd] = useState(null);
     const [ops, setOps] = useState([]);
@@ -31,6 +34,13 @@ export const Mars = props => {
     const [facing, setFacing] = useState("N");
     const [path, setPath] = useState(null);
     const [error, setError] = useState(null);
+
+
+    useEffect(()=>{
+        reset(()=>{
+            process(commands,positionProp);
+        });
+    }, [props.commands, props.positionProp, props.executeProp]);
 
     const reset = cb => {
        setStart(null);
@@ -40,35 +50,41 @@ export const Mars = props => {
        setFacing("N");
        setPath(null);
        setError(null);
-       cb();
+       if(cb) cb();
     };
 
-    const process = ({ commands, position }) => {
+    const process = (commands, positionProp) => {
         if (commands === '') {
             reset();
         } else {
-            const parts = position.split(" ");
-            setStart(`${parts[0]}-${parts[1]}`);
-            setPosition(`${parts[0]}-${parts[1]}`);
-            setFacing(parts[2]);
-            if (props.execute) {
+           if(typeof positionProp === 'string'){
+               const parts = positionProp.split(" ");
+               setStart(`${parts[0]}-${parts[1]}`);
+               setPosition(`${parts[0]}-${parts[1]}`);
+               setFacing(parts[2]);
+           }
+
+            if (executeProp) {
                 execute(commands);
             }
         }
     };
 
     const execute = commands => {
-        let ops =  (commands || "").split("");
+        let ops = commands || "";
+        ops =  ops.split("");
         setOps(ops);
         setTimeout(run,500);
     };
 
     const run = () => {
+        console.log(ops);
         let opsTemp = ops.slice();
         let pathTemp = path || {};
         pathTemp[position] = facing;
         let op = opsTemp.shift();
         let newPosition = {};
+        console.log(op,opsTemp);
         if (op === 'L') {
             newPosition = turnRoverLeft();
         } else if (op === "R") {
@@ -102,7 +118,7 @@ export const Mars = props => {
         return setFacing(RIGHT_TURNS_MAP[facing]);
     };
 
-    const moveRoverForward = ({ size }) => {
+    const moveRoverForward = (size) => {
         const moveVector = MOVE_VECTOR[facing];
         const pos = position.split('-').map(Number);
         const x = pos[0] + moveVector[0];
@@ -113,5 +129,52 @@ export const Mars = props => {
         return setPosition(x + '-' + y);
     };
 
+    let cells = [];
 
+    useEffect(() => {
+
+        let tempPath = path === null ? {} : path;
+
+        setPath(tempPath);
+
+        for (let i = size - 1; i >= 0; i--) {
+            for (let j = 0; j < size; j++) {
+                cells.push(j + "-" + i);
+            }
+        }
+    },[cells, path, size]);
+
+    return(
+        <ul className="mars">
+            {cells.map(cell => {
+
+                let roverElm = null;
+                let roverPath = null;
+                let cellStatus = '';
+
+                if (error && end === cell) {
+                    cellStatus = 'error';
+                }
+                if (start === cell) {
+                    cellStatus += ' start';
+                }
+                if (end === cell) {
+                    cellStatus += ' end';
+                }
+
+                if (position === cell) {
+                    roverElm = <Rover facing={facing}/>;
+                } else {
+                    roverPath = (path[cell] ? <Rover facing={path[cell]} ghost={true}/> : null);
+                }
+
+                return (
+                    <li className={`cell ${!!path[cell] ? 'path' : ''} ${cellStatus}`} key={cell}>
+                        <label>{cell}</label>
+                        {roverElm || roverPath}
+                    </li>
+                );
+            })}
+        </ul>
+    )
 };
